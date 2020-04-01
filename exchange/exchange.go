@@ -27,10 +27,18 @@ import (
 	"github.com/prebid/prebid-server/prebid_cache_client"
 )
 
+type DebugLog struct {
+	EnableDebug bool
+	CacheType   prebid_cache_client.PayloadType
+	Data        string
+	TTL         int64
+	CacheKey    string
+}
+
 // Exchange runs Auctions. Implementations must be threadsafe, and will be shared across many goroutines.
 type Exchange interface {
 	// HoldAuction executes an OpenRTB v2.5 Auction.
-	HoldAuction(ctx context.Context, bidRequest *openrtb.BidRequest, usersyncs IdFetcher, labels pbsmetrics.Labels, categoriesFetcher *stored_requests.CategoryFetcher) (*openrtb.BidResponse, error)
+	HoldAuction(ctx context.Context, bidRequest *openrtb.BidRequest, usersyncs IdFetcher, labels pbsmetrics.Labels, categoriesFetcher *stored_requests.CategoryFetcher, debugLog *DebugLog) (*openrtb.BidResponse, error)
 }
 
 // IdFetcher can find the user's ID for a specific Bidder.
@@ -78,7 +86,7 @@ func NewExchange(client *http.Client, cache prebid_cache_client.Client, cfg *con
 	return e
 }
 
-func (e *exchange) HoldAuction(ctx context.Context, bidRequest *openrtb.BidRequest, usersyncs IdFetcher, labels pbsmetrics.Labels, categoriesFetcher *stored_requests.CategoryFetcher) (*openrtb.BidResponse, error) {
+func (e *exchange) HoldAuction(ctx context.Context, bidRequest *openrtb.BidRequest, usersyncs IdFetcher, labels pbsmetrics.Labels, categoriesFetcher *stored_requests.CategoryFetcher, debugLog *DebugLog) (*openrtb.BidResponse, error) {
 	// Snapshot of resolved bid request for debug if test request
 	resolvedRequest, err := buildResolvedRequest(bidRequest)
 	if err != nil {
@@ -142,6 +150,7 @@ func (e *exchange) HoldAuction(ctx context.Context, bidRequest *openrtb.BidReque
 	adapterBids, adapterExtra, anyBidsReturned := e.getAllBids(auctionCtx, cleanRequests, aliases, bidAdjustmentFactors, blabels, conversions)
 
 	var auc *auction = nil
+	var bidResponseExt *openrtb_ext.ExtBidResponse = nil
 	if anyBidsReturned {
 
 		var bidCategory map[string]string
@@ -162,7 +171,15 @@ func (e *exchange) HoldAuction(ctx context.Context, bidRequest *openrtb.BidReque
 
 		if targData != nil {
 			auc.setRoundedPrices(targData.priceGranularity)
-			cacheErrs := auc.doCache(ctx, e.cache, targData, bidRequest, 60, &e.defaultTTLs, bidCategory)
+			if debugLog != nil && debugLog.EnableDebug {
+				bidResponseExt = e.makeExtBidResponse(adapterBids, adapterExtra, bidRequest, resolvedRequest, errs)
+				if bidRespExtBytes, err := json.Marshal(bidResponseExt); err == nil {
+					debugLog.Data = fmt.Sprintf("<!--\n%s\n\nResponse:\n%s\n-->", debugLog.Data, string(bidRespExtBytes))
+				} else {
+					errs = append(errs, errors.New("Unable to marshal response ext for debugging"))
+				}
+			}
+			cacheErrs := auc.doCache(ctx, e.cache, targData, bidRequest, 60, &e.defaultTTLs, bidCategory, debugLog)
 			if len(cacheErrs) > 0 {
 				errs = append(errs, cacheErrs...)
 			}
@@ -176,7 +193,7 @@ func (e *exchange) HoldAuction(ctx context.Context, bidRequest *openrtb.BidReque
 	}
 
 	// Build the response
-	return e.buildBidResponse(ctx, liveAdapters, adapterBids, bidRequest, resolvedRequest, adapterExtra, auc, errs)
+	return e.buildBidResponse(ctx, liveAdapters, adapterBids, bidRequest, resolvedRequest, adapterExtra, auc, bidResponseExt, errs)
 }
 
 type DealTierInfo struct {
@@ -368,14 +385,14 @@ func errorsToMetric(errs []error) map[pbsmetrics.AdapterError]struct{} {
 	ret := make(map[pbsmetrics.AdapterError]struct{}, len(errs))
 	var s struct{}
 	for _, err := range errs {
-		switch errortypes.DecodeError(err) {
-		case errortypes.TimeoutCode:
+		switch errortypes.ReadCode(err) {
+		case errortypes.TimeoutErrorCode:
 			ret[pbsmetrics.AdapterErrorTimeout] = s
-		case errortypes.BadInputCode:
+		case errortypes.BadInputErrorCode:
 			ret[pbsmetrics.AdapterErrorBadInput] = s
-		case errortypes.BadServerResponseCode:
+		case errortypes.BadServerResponseErrorCode:
 			ret[pbsmetrics.AdapterErrorBadServerResponse] = s
-		case errortypes.FailedToRequestBidsCode:
+		case errortypes.FailedToRequestBidsErrorCode:
 			ret[pbsmetrics.AdapterErrorFailedToRequestBids] = s
 		default:
 			ret[pbsmetrics.AdapterErrorUnknown] = s
@@ -387,14 +404,14 @@ func errorsToMetric(errs []error) map[pbsmetrics.AdapterError]struct{} {
 func errsToBidderErrors(errs []error) []openrtb_ext.ExtBidderError {
 	serr := make([]openrtb_ext.ExtBidderError, len(errs))
 	for i := 0; i < len(errs); i++ {
-		serr[i].Code = errortypes.DecodeError(errs[i])
+		serr[i].Code = errortypes.ReadCode(errs[i])
 		serr[i].Message = errs[i].Error()
 	}
 	return serr
 }
 
 // This piece takes all the bids supplied by the adapters and crafts an openRTB response to send back to the requester
-func (e *exchange) buildBidResponse(ctx context.Context, liveAdapters []openrtb_ext.BidderName, adapterBids map[openrtb_ext.BidderName]*pbsOrtbSeatBid, bidRequest *openrtb.BidRequest, resolvedRequest json.RawMessage, adapterExtra map[openrtb_ext.BidderName]*seatResponseExtra, auc *auction, errList []error) (*openrtb.BidResponse, error) {
+func (e *exchange) buildBidResponse(ctx context.Context, liveAdapters []openrtb_ext.BidderName, adapterBids map[openrtb_ext.BidderName]*pbsOrtbSeatBid, bidRequest *openrtb.BidRequest, resolvedRequest json.RawMessage, adapterExtra map[openrtb_ext.BidderName]*seatResponseExtra, auc *auction, bidResponseExt *openrtb_ext.ExtBidResponse, errList []error) (*openrtb.BidResponse, error) {
 	bidResponse := new(openrtb.BidResponse)
 
 	bidResponse.ID = bidRequest.ID
@@ -417,7 +434,9 @@ func (e *exchange) buildBidResponse(ctx context.Context, liveAdapters []openrtb_
 
 	bidResponse.SeatBid = seatBids
 
-	bidResponseExt := e.makeExtBidResponse(adapterBids, adapterExtra, bidRequest, resolvedRequest, errList)
+	if bidResponseExt == nil {
+		bidResponseExt = e.makeExtBidResponse(adapterBids, adapterExtra, bidRequest, resolvedRequest, errList)
+	}
 	buffer := &bytes.Buffer{}
 	enc := json.NewEncoder(buffer)
 	enc.SetEscapeHTML(false)
@@ -653,7 +672,7 @@ func (e *exchange) makeSeatBid(adapterBid *pbsOrtbSeatBid, adapter openrtb_ext.B
 		ext, err := json.Marshal(sbExt)
 		if err != nil {
 			extError := openrtb_ext.ExtBidderError{
-				Code:    errortypes.DecodeError(err),
+				Code:    errortypes.ReadCode(err),
 				Message: fmt.Sprintf("Error writing SeatBid.Ext: %s", err.Error()),
 			}
 			adapterExtra[adapter].Errors = append(adapterExtra[adapter].Errors, extError)

@@ -17,8 +17,12 @@ const schemaDirectory = "static/bidder-params"
 // BidderName may refer to a bidder ID, or an Alias which is defined in the request.
 type BidderName string
 
+// BidderNameGeneral is reserved for non-bidder specific messages when using a map keyed on the bidder name.
+const BidderNameGeneral = BidderName("general")
+
 // These names _must_ coincide with the bidder code in Prebid.js, if an adapter also exists in that project.
 // Please keep these (and the BidderMap) alphabetized to minimize merge conflicts among adapter submissions.
+// The bidder name 'general' is not allowed since it has special meaning in message maps.
 const (
 	Bidder33Across         BidderName = "33across"
 	BidderAdform           BidderName = "adform"
@@ -47,6 +51,7 @@ const (
 	BidderGumGum           BidderName = "gumgum"
 	BidderImprovedigital   BidderName = "improvedigital"
 	BidderIx               BidderName = "ix"
+	BidderKidoz            BidderName = "kidoz"
 	BidderKubient          BidderName = "kubient"
 	BidderLifestreet       BidderName = "lifestreet"
 	BidderLockerDome       BidderName = "lockerdome"
@@ -70,6 +75,7 @@ const (
 	BidderTripleliftNative BidderName = "triplelift_native"
 	BidderUcfunnel         BidderName = "ucfunnel"
 	BidderUnruly           BidderName = "unruly"
+	BidderValueImpression  BidderName = "valueimpression"
 	BidderVerizonMedia     BidderName = "verizonmedia"
 	BidderVisx             BidderName = "visx"
 	BidderVrtcal           BidderName = "vrtcal"
@@ -78,6 +84,7 @@ const (
 )
 
 // BidderMap stores all the valid OpenRTB 2.x Bidders in the project. This map *must not* be mutated.
+// The bidder name 'general' is not allowed since it has special meaning in message maps.
 var BidderMap = map[string]BidderName{
 	"33across":          Bidder33Across,
 	"adform":            BidderAdform,
@@ -106,6 +113,7 @@ var BidderMap = map[string]BidderName{
 	"gumgum":            BidderGumGum,
 	"improvedigital":    BidderImprovedigital,
 	"ix":                BidderIx,
+	"kidoz":             BidderKidoz,
 	"kubient":           BidderKubient,
 	"lifestreet":        BidderLifestreet,
 	"lockerdome":        BidderLockerDome,
@@ -129,6 +137,7 @@ var BidderMap = map[string]BidderName{
 	"triplelift_native": BidderTripleliftNative,
 	"ucfunnel":          BidderUcfunnel,
 	"unruly":            BidderUnruly,
+	"valueimpression":   BidderValueImpression,
 	"verizonmedia":      BidderVerizonMedia,
 	"visx":              BidderVisx,
 	"vrtcal":            BidderVrtcal,
