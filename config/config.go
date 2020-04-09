@@ -66,6 +66,8 @@ type Configuration struct {
 	PemCertsFile string `mapstructure:"certificates_file"`
 	// Custom headers to handle request timeouts from queueing infrastructure
 	RequestTimeoutHeaders RequestTimeoutHeaders `mapstructure:"request_timeout_headers"`
+
+	TargetWinnerURL bool `mapstructure:"target_winner_url"`
 }
 
 const MIN_COOKIE_SIZE_BYTES = 500
