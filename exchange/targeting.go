@@ -22,6 +22,7 @@ type targetData struct {
 	includeBidderKeys bool
 	includeCacheBids  bool
 	includeCacheVast  bool
+	includeURL        bool
 	// cacheHost and cachePath exist to supply cache host and path as targeting parameters
 	cacheHost string
 	cachePath string
@@ -70,6 +71,10 @@ func (targData *targetData) setTargeting(auc *auction, isApp bool, categoryMappi
 			}
 			if len(categoryMapping) > 0 {
 				targData.addKeys(targets, openrtb_ext.HbCategoryDurationKey, categoryMapping[topBidPerBidder.bid.ID], bidderName, isOverallWinner)
+			}
+
+			if targData.includeURL {
+				targData.addKeys(targets, openrtb_ext.HbWinningURLKey, "ENDPOINT GOES HERE", bidderName, isOverallWinner)
 			}
 
 			topBidPerBidder.bidTargets = targets
