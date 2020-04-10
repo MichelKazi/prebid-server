@@ -115,6 +115,7 @@ adapters:
 blacklisted_apps: ["spamAppID","sketchy-app-id"]
 account_required: true
 certificates_file: /etc/ssl/cert.pem
+target_winner_url: true
 `)
 
 var adapterExtraInfoConfig = []byte(`
@@ -283,6 +284,9 @@ func TestFullConfig(t *testing.T) {
 	cmpBools(t, "account_required", cfg.AccountRequired, true)
 	cmpBools(t, "account_adapter_details", cfg.Metrics.Disabled.AccountAdapterDetails, true)
 	cmpStrings(t, "certificates_file", cfg.PemCertsFile, "/etc/ssl/cert.pem")
+
+	// Assert that the TargetWinnerURL field is correctly set
+	cmpBools(t, "target_winner_url", cfg.TargetWinnerURL, true)
 }
 
 func TestUnmarshalAdapterExtraInfo(t *testing.T) {
