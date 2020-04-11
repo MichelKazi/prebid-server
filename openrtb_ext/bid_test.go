@@ -16,6 +16,13 @@ func TestTruncatedKey(t *testing.T) {
 	}
 }
 
+func TestWinningURLKey(t *testing.T) {
+	urlKey := HbWinningURLKey
+	if urlKey != "hb_winning_url" {
+		t.Errorf("Bad winning URL key. Expected hb_winning_url, got %s", urlKey)
+	}
+}
+
 func TestBidParsing(t *testing.T) {
 	assertBidParse(t, "banner", BidTypeBanner)
 	assertBidParse(t, "video", BidTypeVideo)
