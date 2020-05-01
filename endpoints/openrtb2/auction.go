@@ -50,7 +50,7 @@ func NewEndpoint(ex exchange.Exchange, validator openrtb_ext.BidderParamValidato
 		requestsById,
 		empty_fetcher.EmptyFetcher{},
 		categories,
-		cfg,
+		cfg, // REVIEW comment 5: Here's the `cfg` object, will be found inside the `endpointDeps` object
 		met,
 		pbsAnalytics,
 		disabledBidders,
@@ -77,7 +77,9 @@ type endpointDeps struct {
 }
 
 func (deps *endpointDeps) Auction(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
+	//         ^
+	//         |
+	// REVIEW comment 6: This is the object where the `cfg` object ends up. Now, how do we make this info to get to the `setTargeting` function?
 	ao := analytics.AuctionObject{
 		Status: http.StatusOK,
 		Errors: make([]error, 0),

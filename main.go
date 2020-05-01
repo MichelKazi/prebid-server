@@ -31,12 +31,12 @@ func init() {
 func main() {
 	flag.Parse() // required for glog flags and testing package flags
 
-	cfg, err := loadConfig()
+	cfg, err := loadConfig() //  REVIEW comment 1: Changes you made to config/config.go are loaded here
 	if err != nil {
 		glog.Fatalf("Configuration could not be loaded or did not pass validation: %v", err)
 	}
 
-	err = serve(Rev, cfg)
+	err = serve(Rev, cfg) // REVIEW comment 2: `cfg` data passed to this function
 	if err != nil {
 		glog.Errorf("prebid-server failed: %v", err)
 	}
@@ -54,7 +54,7 @@ func serve(revision string, cfg *config.Configuration) error {
 	fetchingInterval := time.Duration(cfg.CurrencyConverter.FetchIntervalSeconds) * time.Second
 	currencyConverter := currencies.NewRateConverter(&http.Client{}, cfg.CurrencyConverter.FetchURL, fetchingInterval)
 
-	r, err := router.New(cfg, currencyConverter)
+	r, err := router.New(cfg, currencyConverter) // REVIEW comment 3: router was initialized with `cfg` data
 	if err != nil {
 		return err
 	}

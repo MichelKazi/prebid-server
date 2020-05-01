@@ -260,7 +260,7 @@ func New(cfg *config.Configuration, rateConvertor *currencies.RateConverter) (r 
 	if cfg.RequestTimeoutHeaders != requestTimeoutHeaders {
 		videoEndpoint = aspects.QueuedRequestTimeout(videoEndpoint, cfg.RequestTimeoutHeaders)
 	}
-
+	// REVIEW comment 4: `cfg` data will be used to run the `Auction` function found in `endpoints/openrtb2/auctiion.go`
 	r.POST("/auction", endpoints.Auction(cfg, syncers, gdprPerms, r.MetricsEngine, dataCache, exchanges))
 	r.POST("/openrtb2/auction", openrtbEndpoint)
 	r.POST("/openrtb2/video", videoEndpoint)
